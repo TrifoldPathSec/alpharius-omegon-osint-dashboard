@@ -1,4 +1,4 @@
-# alpharius-omegon
+# alpharius-omegon-osint-dashboard
 
 **Open-source threat intelligence dashboard. It collects public threat feeds, enriches suspicious indicators, and checks them against your own Wazuh lab.**
 
@@ -100,8 +100,8 @@ This is a tool that handles hostile input, so it's built defensively:
 Requires Python 3.9+.
 
 ```bash
-git clone https://github.com/TrifoldPathSec/alpharius-omegon.git
-cd alpharius-omegon
+git clone https://github.com/TrifoldPathSec/alpharius-omegon-osint-dashboard.git
+cd alpharius-omegon-osint-dashboard
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env              # optional: add API keys
