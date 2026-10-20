@@ -122,19 +122,52 @@ To keep the intel fresh, schedule `ingest` with cron or launchd. Be polite to th
 
 ## Connect it to Wazuh
 
-Set the indexer details in `.env`:
+Tested against Wazuh 4.14 (wazuh-docker, single node). It takes three steps.
+
+**1. Point it at the indexer** in `.env`:
 
 ```ini
 WAZUH_INDEXER_URL=https://<wazuh-host>:9200
-WAZUH_INDEXER_USER=<read-only-user>
-WAZUH_INDEXER_PASSWORD=<password>
-WAZUH_INDEXER_VERIFY=config/root-ca.pem     # copied from wazuh-docker's certs
+WAZUH_INDEXER_SERVER_NAME=wazuh.indexer      # the name on the indexer certificate
+WAZUH_INDEXER_VERIFY=config/root-ca.pem
 ```
 
-- `match-alerts --indexer` queries `wazuh-alerts-*` for the last N hours. It extracts public IPs, URLs and domain fields from `data.*` and `full_log`, skips private addresses, and records every hit.
+**2. Copy the indexer's root CA** out of the running container:
+
+```bash
+ssh <user>@<wazuh-host> 'docker exec $(docker ps -qf name=indexer) sh -c "cat \$(find /usr/share/wazuh-indexer -name root-ca.pem | head -1)"' > config/root-ca.pem
+```
+
+**3. Create a least-privilege user.** The script prompts for the indexer admin password, which is never stored or printed. It creates the role `alpharius_readonly` with `read` on `wazuh-alerts-*` and `wazuh-states-vulnerabilities-*` only, plus the user `alpharius` with a random password written straight into `.env` (chmod 600). It then proves the user can read both indexes and gets a 403 when it tries to write.
+
+```bash
+python scripts/wazuh_readonly_user.py
+```
+
+```
+role alpharius_readonly: ok
+user alpharius: ok
+mapping alpharius -> alpharius_readonly: ok
+read  wazuh-alerts-*                    HTTP 200  count=1008
+read  wazuh-states-vulnerabilities-*    HTTP 200  count=3128
+write test (should be 403)              HTTP 403
+```
+
+**Why `SERVER_NAME`:** wazuh-docker issues the indexer certificate for `wazuh.indexer` only, so connecting by IP fails hostname checks. The common fix is `verify=False`. Instead, the client connects by IP, verifies the chain against *only* your Wazuh root CA (no system CAs) and requires the certificate name to be `wazuh.indexer`. A wrong name is rejected. Python 3.13+ also enables strict X.509 checks, which reject the `wazuh-certs-tool` CA because it has no keyUsage extension. That single strictness flag is relaxed for this pinned connection only.
+
+Then:
+
+- `match-alerts --indexer --hours N` queries `wazuh-alerts-*`. It extracts public IPs, URLs and domain fields from `data.*` and `full_log`, and skips private addresses. It also skips configuration-assessment alerts (SCA, rootcheck) and documentation fields (`references`, `remediation`, …), because their URLs aren't network activity.
 - `match-vulns --indexer` queries `wazuh-states-vulnerabilities-*` (Wazuh 4.8+) and keeps the CVEs that are on the KEV list. Ransomware-linked CVEs are sorted first.
 
 No indexer access? `--file` accepts `alerts.json` (JSON lines from `/var/ossec/logs/alerts/`), a JSON array, or a saved `_search` response.
+
+### First live run
+
+Against the lab on 2026-10-20:
+
+- **3,128 vulnerability findings → 2 on CISA KEV.** The macOS agent was running a macOS 26.4.1 build affected by two actively exploited Apple CVEs (one Critical). Of 3,000+ findings, these are the two to patch first.
+- **1,008 alerts → 0 matches, and 0 network observables.** Every alert was configuration assessment or host monitoring. That's a real gap the tool surfaced: the lab doesn't forward DNS, firewall or proxy logs yet, so there's nothing for intel to match against. Adding network telemetry is next on the roadmap.
 
 ## Try it
 
@@ -152,10 +185,10 @@ python -m alpharius serve
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q        # 52 tests, fully offline (HTTP, DNS and TLS are faked)
+python -m pytest -q        # 55 tests, fully offline (HTTP, DNS and TLS are faked)
 ```
 
-The tests cover the feed parsers, upsert idempotency, one failing feed not stopping the others, defang/classify, RDAP walk-up to the registered domain, the scoring rules, the github.com false-positive case, redirect-chain handling with relative `Location` headers, the SSRF guard (including a redirect into `127.0.0.1`), TLS certificate parsing with a generated self-signed cert, wildcard hostname matching, Wazuh alert and KEV matching across both vulnerability formats, CSRF rejection and HTML escaping.
+The tests cover the feed parsers, upsert idempotency, one failing feed not stopping the others, defang/classify, RDAP walk-up to the registered domain, the scoring rules, the github.com false-positive case, redirect-chain handling with relative `Location` headers, the SSRF guard (including a redirect into `127.0.0.1`), TLS certificate parsing with a generated self-signed cert, wildcard hostname matching, indexer certificate-name pinning, Wazuh alert and KEV matching across both vulnerability formats, skipping SCA alerts, CSRF rejection and HTML escaping.
 
 ## Project layout
 
@@ -163,13 +196,14 @@ The tests cover the feed parsers, upsert idempotency, one failing feed not stopp
 alpharius/
   feeds.py        URLhaus, ThreatFox, Feodo, KEV: parsers + ingest
   enrich.py       classify/refang, passive + active enrichment, SSRF guard, scoring
-  wazuh.py        alert observable extraction, alert + KEV matching, indexer client
+  wazuh.py        alert observable extraction, alert + KEV matching, pinned-TLS indexer client
   db.py           SQLite schema + chart queries
   web.py          Flask app (CSRF, CSP, pages)
   __main__.py     CLI
   templates/      Jinja pages
   static/         CSS + Chart.js wiring
 scripts/make_demo_alerts.py
+scripts/wazuh_readonly_user.py   least-privilege indexer user setup
 samples/demo-vulns.json
 tests/            pytest + offline fixtures
 ```
@@ -179,10 +213,12 @@ tests/            pytest + offline fixtures
 - The registrable-domain check is a heuristic, not the full Public Suffix List.
 - There's no authentication, by design for a loopback lab tool. It would need auth before living anywhere shared.
 - Feodo Tracker's blocklist only lists recent C2s, so the country chart is small on quiet days.
+- Alert matching is only as good as the telemetry. Wazuh needs DNS, firewall or proxy logs for there to be network indicators to match.
 - Free API tiers have rate limits. Failures show up per section instead of failing the whole lookup.
 
 ## Roadmap
 
+- Forward network telemetry (DNS queries, firewall connections) from the lab into Wazuh so alert matching has real traffic to work with.
 - Send URLs flagged by [sharrowkyn-phishing-analyzer](https://github.com/TrifoldPathSec/sharrowkyn-phishing-analyzer) straight into enrichment.
 - Export matched indicators as a Wazuh CDB list, so the SIEM alerts on them natively.
 - Add an optional AlienVault OTX pulse feed.

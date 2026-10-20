@@ -34,6 +34,7 @@ class Settings:
     wazuh_password: str
     wazuh_verify: object  # True, False, or a CA bundle path
     http_timeout: float = 20.0
+    wazuh_server_name: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -45,7 +46,7 @@ class Settings:
         elif verify_raw.lower() in ("true", "1", "yes", ""):
             verify = True
         else:
-            verify = verify_raw
+            verify = verify_raw if Path(verify_raw).is_absolute() else str(ROOT / verify_raw)
         return cls(
             db_path=env("ALPHARIUS_DB", str(ROOT / "data" / "alpharius.db")),
             secret_key=env("FLASK_SECRET_KEY", "") or os.urandom(32).hex(),
@@ -57,4 +58,5 @@ class Settings:
             wazuh_user=env("WAZUH_INDEXER_USER", ""),
             wazuh_password=env("WAZUH_INDEXER_PASSWORD", ""),
             wazuh_verify=verify,
+            wazuh_server_name=env("WAZUH_INDEXER_SERVER_NAME", ""),
         )

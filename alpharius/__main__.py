@@ -69,12 +69,14 @@ def main(argv=None) -> int:
         return 0
 
     if args.cmd == "match-alerts":
-        docs = wazuh.load_docs(args.file) if args.file else wazuh.fetch_alerts(http, settings, args.hours)
+        docs = wazuh.load_docs(args.file) if args.file else \
+            wazuh.fetch_alerts(wazuh.indexer_session(settings, http), settings, args.hours)
         print(wazuh.match_alerts(conn, docs))
         return 0
 
     if args.cmd == "match-vulns":
-        docs = wazuh.load_docs(args.file) if args.file else wazuh.fetch_vulns(http, settings)
+        docs = wazuh.load_docs(args.file) if args.file else \
+            wazuh.fetch_vulns(wazuh.indexer_session(settings, http), settings)
         print(wazuh.match_vulns(conn, docs))
         return 0
     return 1

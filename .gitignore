@@ -10,3 +10,4 @@ data/
 .DS_Store
 samples/demo-alerts.jsonl
 .claude/
+config/*.pem

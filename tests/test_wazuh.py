@@ -67,3 +67,32 @@ def test_domain_of_hosted_url_does_not_match(conn):
                                    "host": "github.com", "source": "urlhaus"}])
     alert = {"id": "g1", "data": {"dns": {"queryname": "github.com"}}}
     assert wazuh.match_alerts(conn, [alert])["new_matches"] == 0
+
+
+def test_indexer_session_pins_server_name(settings):
+    settings.wazuh_server_name = "wazuh.indexer"
+    session = wazuh.indexer_session(settings)
+    adapter = session.get_adapter(f"{settings.wazuh_url}/wazuh-alerts-*/_search")
+    assert isinstance(adapter, wazuh.ServerNameAdapter)
+    assert adapter.poolmanager.connection_pool_kw["assert_hostname"] == "wazuh.indexer"
+    assert adapter.poolmanager.connection_pool_kw["server_hostname"] == "wazuh.indexer"
+    ctx = adapter.poolmanager.connection_pool_kw["ssl_context"]
+    import ssl
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.get_ca_certs() == []  # only the lab CA gets loaded
+    # other hosts keep the normal adapter
+    assert not isinstance(session.get_adapter("https://rdap.org/"), wazuh.ServerNameAdapter)
+
+
+def test_indexer_requires_credentials(settings):
+    import pytest
+    settings.wazuh_password = ""
+    with pytest.raises(RuntimeError, match="wazuh_readonly_user"):
+        wazuh.fetch_alerts(FakeHTTP(), settings)
+
+
+def test_config_assessment_alerts_are_skipped():
+    sca = {"rule": {"groups": ["sca"]}, "data": {"sca": {"check": {"references": "https://evil-c2.example/x"}}}}
+    assert wazuh.extract_observables(sca) == set()
+    doc = {"rule": {"groups": ["web"]}, "data": {"description": "see https://docs.example/x", "url": "http://1.1.1.1/a"}}
+    values = {v for _, v in wazuh.extract_observables(doc)}
+    assert "https://docs.example/x" not in values and "http://1.1.1.1/a" in values

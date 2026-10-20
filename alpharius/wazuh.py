@@ -15,15 +15,23 @@ import ipaddress
 import json
 import re
 import sqlite3
+import ssl
 from pathlib import Path
 from typing import Iterable, Iterator, List, Optional, Set, Tuple
 from urllib.parse import urlsplit
+
+import requests
+from requests.adapters import HTTPAdapter
 
 from .db import utcnow
 
 IPV4_RE = re.compile(r"(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])")
 URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.I)
 DOMAIN_FIELDS = {"hostname", "domain", "queryname", "query", "dns_query", "host", "server_name", "sni"}
+# Config-assessment and documentation text mentions URLs that aren't network activity.
+SKIP_RULE_GROUPS = {"sca", "rootcheck", "vulnerability-detector"}
+SKIP_FIELD_PARTS = {"references", "reference", "rationale", "remediation", "description",
+                    "compliance", "policy", "title"}
 
 
 # ---------- loading ----------
@@ -51,9 +59,52 @@ def load_docs(path: str) -> List[dict]:
     return docs
 
 
+class ServerNameAdapter(HTTPAdapter):
+    """Connect to one address but verify the certificate for another name.
+
+    wazuh-docker issues the indexer certificate for "wazuh.indexer" only, so
+    connecting by IP would fail hostname verification. This keeps full chain
+    verification against the Wazuh root CA and checks the expected name,
+    instead of turning verification off."""
+
+    def __init__(self, server_name: str, **kw):
+        self.server_name = server_name
+        super().__init__(**kw)
+
+    def init_poolmanager(self, *args, **kw):
+        kw["assert_hostname"] = self.server_name
+        kw["server_hostname"] = self.server_name
+        kw["ssl_context"] = lab_ca_context()
+        super().init_poolmanager(*args, **kw)
+
+
+def lab_ca_context() -> ssl.SSLContext:
+    """Certificate-verifying context that trusts only the CA file requests passes
+    in (no system CAs). It skips VERIFY_X509_STRICT, which newer Python versions
+    turn on and which rejects the wazuh-certs-tool root CA because it has no
+    keyUsage extension. Chain and hostname are still verified."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # CERT_REQUIRED, no CAs loaded
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
+    return ctx
+
+
+def indexer_session(settings, http=None):
+    """The HTTP client to use for the indexer: a name-pinned session when
+    WAZUH_INDEXER_SERVER_NAME is set, otherwise the shared one."""
+    if getattr(settings, "wazuh_server_name", ""):
+        session = requests.Session()
+        session.mount(f"{settings.wazuh_url}/", ServerNameAdapter(settings.wazuh_server_name))
+        return session
+    return http or requests.Session()
+
+
 def _indexer_search(http, settings, index: str, body: dict) -> List[dict]:
     if not settings.wazuh_url:
         raise RuntimeError("WAZUH_INDEXER_URL is not set")
+    if not settings.wazuh_user or not settings.wazuh_password:
+        raise RuntimeError("WAZUH_INDEXER_USER / WAZUH_INDEXER_PASSWORD are not set "
+                           "(run scripts/wazuh_readonly_user.py)")
     resp = http.post(f"{settings.wazuh_url}/{index}/_search", json=body,
                      auth=(settings.wazuh_user, settings.wazuh_password),
                      verify=settings.wazuh_verify, timeout=30)
@@ -95,7 +146,12 @@ def _walk(obj, path: str = "") -> Iterator[Tuple[str, str]]:
 def extract_observables(alert: dict) -> Set[Tuple[str, str]]:
     """Return {(field, value)} of public IPs, URLs and domain-like fields in an alert."""
     found: Set[Tuple[str, str]] = set()
+    groups = set((alert.get("rule") or {}).get("groups") or [])
+    if groups & SKIP_RULE_GROUPS:
+        return found
     for field, text in _walk(alert.get("data", {}), "data"):
+        if SKIP_FIELD_PARTS & set(field.lower().split(".")):
+            continue
         for url in URL_RE.findall(text):
             url = url.rstrip(".,;)")
             found.add((field, url))
