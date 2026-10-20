@@ -1,3 +1,5 @@
+import json
+
 from conftest import FIXTURES, FakeHTTP, FakeResponse, fixture_text
 
 from alpharius import feeds, wazuh
@@ -96,3 +98,56 @@ def test_config_assessment_alerts_are_skipped():
     doc = {"rule": {"groups": ["web"]}, "data": {"description": "see https://docs.example/x", "url": "http://1.1.1.1/a"}}
     values = {v for _, v in wazuh.extract_observables(doc)}
     assert "https://docs.example/x" not in values and "http://1.1.1.1/a" in values
+
+
+# IPv6: public resolver addresses stand in for "public" (2001:db8::/32 is the
+# documentation prefix and is deliberately not global, so it must be dropped).
+CF6 = "2606:4700:4700::1111"
+GOOG6 = "2001:4860:4860::8888"
+
+
+def test_extract_ipv6_from_ip_fields_only():
+    obs = wazuh.extract_observables({
+        "rule": {"groups": ["netwatch"]},
+        "data": {"srcip": "2001:db8:482:3000::c61e",            # documentation, not global
+                 "dstip": "2606:4700:4700:0000:0000:0000:0000:1111",  # expanded form
+                 "dns": {"queryname": "example.com", "answers": [GOOG6, "fe80::1%en0", "93.184.215.14"]},
+                 "msg": f"freeform text mentioning {CF6} is ignored"},
+        "full_log": f"{GOOG6} in full_log is ignored"})
+    assert ("data.dstip", CF6) in obs
+    assert ("data.dns.answers", GOOG6) in obs
+    values = {v for _, v in obs}
+    assert "2001:db8:482:3000::c61e" not in values and "fe80::1" not in values
+    assert not any(f in ("data.msg", "full_log") and ":" in v for f, v in obs)
+
+
+def test_ipv6_list_string_and_rrname():
+    obs = wazuh.extract_observables({"data": {"answers": f"[{CF6}], {GOOG6}",
+                                              "dns": {"rrname": "Evil-C2.example."}}})
+    assert {("data.answers", CF6), ("data.answers", GOOG6),
+            ("data.dns.rrname", "evil-c2.example")} <= obs
+
+
+def test_ipv6_url_host_is_compressed():
+    obs = wazuh.extract_observables({"data": {"url": "http://[2606:4700:4700:0:0:0:0:1111]/x.sh"}})
+    assert ("data.url", CF6) in obs
+
+
+def test_threatfox_ipv6_ip_port():
+    text = json.dumps({"1": [{"ioc_type": "ip:port", "ioc_value": "[2606:4700:4700:0::1111]:443"}],
+                       "2": [{"ioc_type": "ip:port", "ioc_value": "203.0.113.9:8080"}]})
+    rows = {r["value"]: r["host"] for r in feeds.parse_threatfox(text)}
+    assert rows == {CF6: CF6, "203.0.113.9": "203.0.113.9"}
+
+
+def test_match_alerts_ipv6_exact_and_host(conn):
+    feeds.store_indicators(conn, [
+        {"value": CF6, "type": "ip", "host": CF6, "source": "threatfox"},
+        {"value": f"http://[{GOOG6}]:8080/payload", "type": "url",
+         "host": feeds.url_host(f"http://[{GOOG6}]:8080/payload"), "source": "urlhaus"}])
+    alerts = [{"id": "v6a", "rule": {"groups": ["netwatch"]}, "data": {"dstip": CF6}},
+              {"id": "v6b", "rule": {"groups": ["netwatch"]}, "data": {"dns": {"answers": [GOOG6]}}},
+              {"id": "v6c", "data": {"dstip": "2001:db8::1"}}]
+    assert wazuh.match_alerts(conn, alerts)["new_matches"] == 2
+    rows = {(r["alert_id"], r["value"], r["source"]) for r in conn.execute("SELECT * FROM alert_matches")}
+    assert rows == {("v6a", CF6, "threatfox"), ("v6b", GOOG6, "urlhaus")}

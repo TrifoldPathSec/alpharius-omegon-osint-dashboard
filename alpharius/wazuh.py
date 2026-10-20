@@ -24,10 +24,16 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from .db import utcnow
+from .feeds import normalise_ip
 
 IPV4_RE = re.compile(r"(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])")
 URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.I)
-DOMAIN_FIELDS = {"hostname", "domain", "queryname", "query", "dns_query", "host", "server_name", "sni"}
+DOMAIN_FIELDS = {"hostname", "domain", "queryname", "query", "dns_query", "host", "server_name", "sni",
+                 "rrname"}
+# Fields that hold IP addresses. IPv6 is only taken from these (no freeform IPv6
+# regex over arbitrary text: "::", MACs and timestamps make that too noisy).
+IP_FIELDS = {"srcip", "dstip", "src_ip", "dst_ip", "dest_ip", "ip", "ipv6", "address", "addr",
+             "answers", "answer", "rdata", "remote_ip", "client_ip", "server_ip"}
 # Config-assessment and documentation text mentions URLs that aren't network activity.
 SKIP_RULE_GROUPS = {"sca", "rootcheck", "vulnerability-detector"}
 SKIP_FIELD_PARTS = {"references", "reference", "rationale", "remediation", "description",
@@ -132,6 +138,22 @@ def _public(ip: str) -> bool:
         return False
 
 
+def _ipv6_values(text: str) -> Iterator[str]:
+    """Public IPv6 addresses in an IP field value, in compressed form. Accepts
+    one address or a comma/space separated list; brackets are stripped and a
+    zone id ("%en0") is dropped."""
+    for token in re.split(r"[\s,;]+", text):
+        token = token.strip("[]").split("%", 1)[0]
+        if ":" not in token:
+            continue
+        try:
+            ip = ipaddress.IPv6Address(token)
+        except ValueError:
+            continue
+        if ip.is_global:
+            yield ip.compressed
+
+
 def _walk(obj, path: str = "") -> Iterator[Tuple[str, str]]:
     if isinstance(obj, dict):
         for k, v in obj.items():
@@ -155,13 +177,19 @@ def extract_observables(alert: dict) -> Set[Tuple[str, str]]:
         for url in URL_RE.findall(text):
             url = url.rstrip(".,;)")
             found.add((field, url))
-            host = urlsplit(url).hostname
+            try:
+                host = urlsplit(url).hostname
+            except ValueError:  # malformed "[...]" host
+                host = None
             if host:
-                found.add((field, host.lower()))
+                found.add((field, normalise_ip(host.lower())))
         for ip in IPV4_RE.findall(text):
             if _public(ip):
                 found.add((field, ip))
         leaf = field.rsplit(".", 1)[-1].lower()
+        if leaf in IP_FIELDS:
+            for ip in _ipv6_values(text):
+                found.add((field, ip))
         if leaf in DOMAIN_FIELDS and "." in text and " " not in text and not IPV4_RE.fullmatch(text):
             found.add((field, text.lower().rstrip(".")))
     full_log = alert.get("full_log", "")

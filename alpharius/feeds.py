@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import csv
 import io
+import ipaddress
 import json
 import sqlite3
 from typing import Callable, Dict, List, Optional
@@ -25,7 +26,27 @@ def url_host(url: str) -> Optional[str]:
         host = urlsplit(url).hostname
     except ValueError:
         return None
-    return host.lower() if host else None
+    return normalise_ip(host.lower()) if host else None
+
+
+def normalise_ip(value: str) -> str:
+    """IPv6 literals in compressed lower-case form (what Wazuh matching
+    produces); anything else unchanged."""
+    if ":" in value:
+        try:
+            return ipaddress.IPv6Address(value).compressed
+        except ValueError:
+            pass
+    return value
+
+
+def _ip_without_port(raw: str) -> str:
+    """ThreatFox "ip:port" values: "1.2.3.4:80" or "[2001:db8::1]:443"."""
+    if raw.startswith("["):
+        return normalise_ip(raw[1:].split("]", 1)[0])
+    if raw.count(":") > 1:  # bare IPv6, no port
+        return normalise_ip(raw)
+    return raw.rsplit(":", 1)[0]
 
 
 def _clean(value: Optional[str]) -> Optional[str]:
@@ -78,7 +99,7 @@ def parse_threatfox(text: str) -> List[dict]:
             if not kind:
                 continue
             raw = e["ioc_value"].strip()
-            value = raw.rsplit(":", 1)[0] if kind == "ip" else raw
+            value = _ip_without_port(raw) if kind == "ip" else raw
             host = url_host(value) if kind == "url" else (value.lower() if kind in ("ip", "domain") else None)
             rows.append({
                 "value": value,
