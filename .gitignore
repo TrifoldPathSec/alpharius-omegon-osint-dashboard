@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+samples/demo-alerts.jsonl
+.claude/

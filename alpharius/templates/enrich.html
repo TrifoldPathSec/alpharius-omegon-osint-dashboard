@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Enrich{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Enrich an indicator</h1></div>
+<div class="card">
+  <form method="post" class="enrich-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input name="value" value="{{ value }}" required autofocus
+           placeholder="IP, domain, URL or MD5/SHA1/SHA256 (defanged is fine: hxxp://bad[.]example)" aria-label="Indicator">
+    <label class="check">
+      <input type="checkbox" name="active">
+      Active checks: follow redirects and read the TLS certificate. This contacts the indicator's server, so use it only for triage you're allowed to do.
+    </label>
+    <button class="btn">Enrich</button>
+  </form>
+  <p class="muted small">Passive sources: local feed database, RDAP (WHOIS), DNS, ipinfo.io, plus AbuseIPDB and VirusTotal when their API keys are set.
+  Active checks refuse anything that resolves to a private or loopback address.</p>
+</div>
+
+<div class="card">
+  <h2>Recent lookups</h2>
+  <table>
+    <tr><th>Indicator</th><th>Type</th><th>Verdict</th><th>Score</th><th>When (UTC)</th></tr>
+    {% for l in recent %}
+    <tr><td class="ioc"><a href="{{ url_for('lookup_view', lookup_id=l.id) }}">{{ l.indicator }}</a></td><td>{{ l.type }}</td>
+        <td><span class="pill v-{{ l.verdict }}">{{ l.verdict }}</span></td><td>{{ l.score }}</td><td>{{ l.created_at[:16] }}</td></tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No lookups yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

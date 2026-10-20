@@ -1,0 +1,5 @@
+{"hits": {"hits": [
+  {"_source": {"agent": {"name": "lab-vm"}, "package": {"name": "liblzma5", "version": "5.6.0"}, "vulnerability": {"id": "CVE-2024-3094", "severity": "Critical", "detected_at": "2026-10-19T10:00:00Z"}}},
+  {"_source": {"agent": {"name": "lab-vm"}, "package": {"name": "openssl", "version": "3.0.2"}, "vulnerability": {"id": "CVE-2099-0001", "severity": "Medium"}}},
+  {"_source": {"agent": {"name": "lab-mac"}, "data": {"vulnerability": {"cve": "cve-2023-4966", "package": {"name": "netscaler", "version": "13.1"}}}}}
+]}}

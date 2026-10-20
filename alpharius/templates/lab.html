@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Lab matches{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Lab matches</h1></div>
+<p class="muted">Where your own Wazuh data meets the threat intel. Feed it with
+<code>python -m alpharius match-alerts --indexer</code> and <code>match-vulns --indexer</code> (or <code>--file</code>).</p>
+
+<div class="card table-wrap">
+  <h2>Alerts that touched a known-bad indicator <small>{{ alerts | length }}</small></h2>
+  <table>
+    <tr><th>Alert time</th><th>Agent</th><th>Rule</th><th>Field</th><th>Indicator</th><th>Feed</th><th>Threat</th><th></th></tr>
+    {% for a in alerts %}
+    <tr>
+      <td class="nowrap">{{ (a.alert_time or a.matched_at)[:16] }}</td>
+      <td>{{ a.agent or '' }}</td>
+      <td>{{ a.rule_id }} <span class="muted">{{ a.rule_desc or '' }}</span></td>
+      <td class="muted">{{ a.field }}</td>
+      <td class="ioc">{{ a.value }}</td>
+      <td><span class="pill src-{{ a.source }}">{{ a.source }}</span></td>
+      <td>{{ a.threat or '' }}{% if a.malware %} · {{ a.malware }}{% endif %}</td>
+      <td><a href="{{ url_for('enrich_view', value=a.value) }}">enrich</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">No alert matches. That's the good outcome.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card table-wrap">
+  <h2>Vulnerabilities on the CISA KEV list <small>{{ vulns | length }}</small></h2>
+  <table>
+    <tr><th>Agent</th><th>CVE</th><th>Package</th><th>Severity</th><th>Ransomware use</th><th>CISA due date</th><th>Vulnerability</th></tr>
+    {% for v in vulns %}
+    <tr>
+      <td>{{ v.agent }}</td>
+      <td class="nowrap"><a href="https://nvd.nist.gov/vuln/detail/{{ v.cve_id }}" rel="noopener noreferrer" target="_blank">{{ v.cve_id }}</a></td>
+      <td>{{ v.package or '' }} <span class="muted">{{ v.version or '' }}</span></td>
+      <td>{{ v.severity or '' }}</td>
+      <td>{% if v.ransomware == 'Known' %}<span class="pill bad">Known</span>{% else %}<span class="muted">{{ v.ransomware or '' }}</span>{% endif %}</td>
+      <td class="nowrap">{{ v.due_date or '' }}</td>
+      <td>{{ v.kev_name or '' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">No KEV CVEs found on your agents.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

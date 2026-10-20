@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ r.indicator }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1 class="ioc">{{ r.indicator }} <small>{{ r.type }}{% if r.active %} · active checks{% endif %}</small></h1>
+  <a class="btn ghost" href="{{ url_for('enrich_view') }}">New lookup</a>
+</div>
+
+<section class="verdict v-{{ r.verdict }}">
+  <div class="score"><span class="num">{{ r.score }}</span><span class="of">/100</span></div>
+  <div>
+    <div class="label">{{ r.verdict | upper }}</div>
+    <meter min="0" max="100" low="30" high="70" optimum="0" value="{{ r.score }}"></meter>
+    <ul class="reasons">
+      {% for reason in r.reasons %}<li>{{ reason }}</li>{% else %}<li class="muted">No risk signals from the sources checked.</li>{% endfor %}
+    </ul>
+    <p class="muted small">Checked {{ r.checked_at }} UTC. A low score means "nothing known-bad", not "safe".</p>
+  </div>
+</section>
+
+<section class="grid">
+  <div class="card wide">
+    <h2>Threat feed hits</h2>
+    {% set fh = r.feeds or {} %}
+    {% if fh.exact %}
+    <table>
+      <tr><th>Matched value</th><th>Feed</th><th>Threat</th><th>Malware</th><th>Status</th><th>First seen</th></tr>
+      {% for f in fh.exact %}
+      <tr><td class="ioc">{{ f.value }}</td><td><span class="pill src-{{ f.source }}">{{ f.source }}</span></td><td>{{ f.threat or '' }}</td>
+          <td>{{ f.malware or '' }}</td><td>{{ f.status or '' }}</td><td class="nowrap">{{ (f.first_seen or '')[:16] }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">The indicator itself isn't in any ingested feed.</p>{% endif %}
+    {% if fh.hosted_total %}
+    <h2 class="sub">Other listed URLs on {{ fh.host }} <small>{{ fh.hosted_total }} total{% if fh.hosted_total > fh.hosted|length %}, newest {{ fh.hosted|length }} shown{% endif %}</small></h2>
+    <table>
+      {% for f in fh.hosted %}
+      <tr><td class="ioc">{{ f.value }}</td><td><span class="pill src-{{ f.source }}">{{ f.source }}</span></td><td>{{ f.threat or '' }}</td><td class="nowrap">{{ (f.first_seen or '')[:16] }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+
+  {% macro kv(title, data, key) %}
+  <div class="card">
+    <h2>{{ title }}</h2>
+    {% if data %}
+      <dl>{% for k, v in data.items() %}{% if v not in (None, '', []) %}
+        <dt>{{ k | label }}</dt>
+        <dd>{% if v is iterable and v is not string %}{{ v | join(', ') }}{% else %}{{ v }}{% endif %}</dd>
+      {% endif %}{% endfor %}</dl>
+    {% elif r.errors.get(key) %}<p class="muted">Failed: {{ r.errors[key] }}</p>
+    {% else %}<p class="muted">Not checked.</p>{% endif %}
+  </div>
+  {% endmacro %}
+
+  {{ kv('Registration (RDAP / WHOIS)', r.rdap, 'rdap') }}
+  {{ kv('DNS', r.dns, 'dns') }}
+  {{ kv('IP details (ipinfo.io)', r.ipinfo, 'ipinfo') }}
+  {{ kv('AbuseIPDB', r.abuseipdb, 'abuseipdb') }}
+  {{ kv('VirusTotal', r.virustotal, 'virustotal') }}
+  {{ kv('TLS certificate', r.tls, 'tls') }}
+
+  <div class="card wide">
+    <h2>Redirect chain & headers</h2>
+    {% if r.http %}
+      <ol class="chain">
+        {% for hop in r.http.chain %}
+        <li><span class="pill">{{ hop.status or '—' }}</span> <span class="ioc">{{ hop.url }}</span>{% if hop.server %} <span class="muted">{{ hop.server }}</span>{% endif %}{% if hop.note %} <span class="muted">{{ hop.note }}</span>{% endif %}</li>
+        {% endfor %}
+      </ol>
+      <dl>{% for k, v in r.http.headers.items() %}<dt>{{ k }}</dt><dd class="ioc">{{ v }}</dd>{% endfor %}</dl>
+      {% if r.http.missing_security_headers %}<p class="muted small">Missing security headers: {{ r.http.missing_security_headers | join(', ') }}</p>{% endif %}
+    {% elif r.errors.get('http') %}<p class="muted">Failed: {{ r.errors['http'] }}</p>
+    {% else %}<p class="muted">Active checks were off for this lookup.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}

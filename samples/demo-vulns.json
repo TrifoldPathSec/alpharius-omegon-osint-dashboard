@@ -1,0 +1,7 @@
+{"hits": {"hits": [
+  {"_source": {"agent": {"name": "lab-ubuntu-vm"}, "package": {"name": "pkexec", "version": "0.105-31"}, "vulnerability": {"id": "CVE-2021-4034", "severity": "High", "detected_at": "2026-10-19T10:00:00Z"}}},
+  {"_source": {"agent": {"name": "lab-ubuntu-vm"}, "package": {"name": "linux-image-generic", "version": "6.5.0-14"}, "vulnerability": {"id": "CVE-2024-1086", "severity": "High", "detected_at": "2026-10-19T10:00:00Z"}}},
+  {"_source": {"agent": {"name": "lab-ubuntu-vm"}, "package": {"name": "libc6", "version": "2.38-1"}, "vulnerability": {"id": "CVE-2023-4911", "severity": "High", "detected_at": "2026-10-19T10:00:00Z"}}},
+  {"_source": {"agent": {"name": "lab-ubuntu-vm"}, "package": {"name": "curl", "version": "8.5.0"}, "vulnerability": {"id": "CVE-2024-2398", "severity": "Medium", "detected_at": "2026-10-19T10:00:00Z"}}},
+  {"_source": {"agent": {"name": "lab-macbook"}, "package": {"name": "python3", "version": "3.9.6"}, "vulnerability": {"id": "CVE-2023-40217", "severity": "Medium", "detected_at": "2026-10-19T10:00:00Z"}}}
+]}}

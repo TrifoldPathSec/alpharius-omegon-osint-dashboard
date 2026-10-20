@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Indicators{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Indicators <small>{{ "{:,}".format(total) }} match</small></h1></div>
+<form class="filters" method="get">
+  <input name="q" value="{{ q }}" placeholder="Search value, malware or tag" aria-label="Search">
+  <select name="source" aria-label="Feed">
+    <option value="">All feeds</option>
+    {% for s in ['urlhaus','threatfox','feodo'] %}<option {{ 'selected' if source == s }}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="type" aria-label="Type">
+    <option value="">All types</option>
+    {% for t in ['ip','domain','url','hash'] %}<option {{ 'selected' if kind == t }}>{{ t }}</option>{% endfor %}
+  </select>
+  <button class="btn">Filter</button>
+</form>
+<div class="card table-wrap">
+<table>
+  <tr><th>Indicator</th><th>Type</th><th>Feed</th><th>Threat</th><th>Malware / tags</th><th>Status</th><th>First seen</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td class="ioc">{{ r.value }}</td>
+    <td>{{ r.type }}</td>
+    <td><span class="pill src-{{ r.source }}">{{ r.source }}</span></td>
+    <td>{{ r.threat or '' }}</td>
+    <td>{{ r.malware or '' }}{% if r.tags %} <span class="muted">{{ r.tags }}</span>{% endif %}</td>
+    <td>{{ r.status or '' }}{% if r.country %} · {{ r.country }}{% endif %}</td>
+    <td class="nowrap">{{ (r.first_seen or '')[:16] }}</td>
+    <td class="nowrap"><a href="{{ url_for('enrich_view', value=r.value) }}">enrich</a>{% if r.reference and r.reference.startswith(('https://','http://')) %} · <a href="{{ r.reference }}" rel="noopener noreferrer" target="_blank">ref</a>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="muted">Nothing matches.</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% if pages > 1 %}
+<nav class="pager">
+  {% if page > 1 %}<a href="{{ url_for('indicators', q=q, source=source, type=kind, page=page-1) }}">← Prev</a>{% endif %}
+  <span>Page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}<a href="{{ url_for('indicators', q=q, source=source, type=kind, page=page+1) }}">Next →</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

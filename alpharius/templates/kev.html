@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}CISA KEV{% endblock %}
+{% block content %}
+<div class="page-head"><h1>CISA Known Exploited Vulnerabilities</h1></div>
+<form class="filters" method="get">
+  <input name="q" value="{{ q }}" placeholder="CVE, vendor or product" aria-label="Search KEV">
+  <button class="btn">Search</button>
+</form>
+<div class="card table-wrap">
+<table>
+  <tr><th>CVE</th><th>Vendor / product</th><th>Vulnerability</th><th>Added</th><th>Due</th><th>Ransomware</th></tr>
+  {% for k in rows %}
+  <tr>
+    <td class="nowrap"><a href="https://nvd.nist.gov/vuln/detail/{{ k.cve_id }}" rel="noopener noreferrer" target="_blank">{{ k.cve_id }}</a></td>
+    <td>{{ k.vendor }} <span class="muted">{{ k.product }}</span></td>
+    <td>{{ k.name }}</td>
+    <td class="nowrap">{{ k.date_added }}</td>
+    <td class="nowrap">{{ k.due_date }}</td>
+    <td>{% if k.ransomware == 'Known' %}<span class="pill bad">Known</span>{% else %}<span class="muted">{{ k.ransomware }}</span>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">No KEV entries. Pull feeds first.</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

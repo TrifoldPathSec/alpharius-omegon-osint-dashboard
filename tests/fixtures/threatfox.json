@@ -1,0 +1,12 @@
+{
+  "1975019": [{"ioc_value": "206.123.152.197:2404", "ioc_type": "ip:port", "threat_type": "botnet_cc",
+    "malware_printable": "Remcos", "first_seen_utc": "2026-10-20 04:35:04", "last_seen_utc": null,
+    "confidence_level": 100, "reference": null, "tags": "c2,Remcos"}],
+  "1975018": [{"ioc_value": "75e4994373a51dbfe5f22f0f071c05dbedd077d80b4f2c3c1f1e0e0d0c0b0a09", "ioc_type": "sha256_hash",
+    "threat_type": "payload", "malware_printable": "AgentTesla", "first_seen_utc": "2026-10-20 04:30:00",
+    "last_seen_utc": null, "confidence_level": 75, "reference": "https://bazaar.abuse.ch/", "tags": null}],
+  "1975017": [{"ioc_value": "evil-c2.example", "ioc_type": "domain", "threat_type": "botnet_cc",
+    "malware_printable": "Remcos", "first_seen_utc": "2026-10-19 22:00:00", "last_seen_utc": null,
+    "confidence_level": 50, "reference": null, "tags": "c2"}],
+  "1975016": [{"ioc_value": "x", "ioc_type": "unknown_type", "malware_printable": "skip-me"}]
+}

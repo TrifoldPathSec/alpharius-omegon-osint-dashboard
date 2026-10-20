@@ -1,0 +1,6 @@
+[
+  {"ip_address": "162.243.103.246", "port": 8080, "status": "offline", "hostname": null, "as_number": 14061,
+   "as_name": "DIGITALOCEAN-ASN", "country": "US", "first_seen": "2022-06-04 21:24:53", "last_online": "2026-03-07", "malware": "Emotet"},
+  {"ip_address": "50.16.16.211", "port": 443, "status": "online", "hostname": null, "as_number": 14618,
+   "as_name": "AMAZON-AES", "country": "US", "first_seen": "2026-10-18 10:00:00", "last_online": "2026-10-20", "malware": "QakBot"}
+]

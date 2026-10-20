@@ -1,0 +1,5 @@
+{"id": "1001", "timestamp": "2026-10-20T08:15:00.000+0000", "rule": {"id": "100200", "description": "Outbound connection"}, "agent": {"name": "lab-mac"}, "data": {"srcip": "10.0.0.15", "dstip": "206.123.152.197", "dstport": "2404"}}
+{"id": "1002", "timestamp": "2026-10-20T08:20:00.000+0000", "rule": {"id": "100201", "description": "DNS query"}, "agent": {"name": "lab-mac"}, "data": {"dns": {"queryname": "evil-c2.example"}}}
+{"id": "1003", "timestamp": "2026-10-20T08:25:00.000+0000", "rule": {"id": "31100", "description": "Web request"}, "agent": {"name": "lab-mac"}, "data": {"url": "fetched http://42.178.168.184:38532/i via curl"}}
+{"id": "1004", "timestamp": "2026-10-20T08:30:00.000+0000", "rule": {"id": "5715", "description": "sshd: login"}, "agent": {"name": "lab-vm"}, "data": {"srcip": "10.0.0.20"}, "full_log": "Accepted password from 10.0.0.20"}
+not json at all

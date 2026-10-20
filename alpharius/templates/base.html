@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Overview{% endblock %} · Alpharius Omegon</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="{{ url_for('overview') }}">
+    <span class="sigil" aria-hidden="true">α|Ω</span>
+    <span>Alpharius Omegon <small>threat intelligence</small></span>
+  </a>
+  <nav>
+    {% set nav = [('overview','Overview'),('indicators','Indicators'),('enrich_view','Enrich'),('lab','Lab matches'),('kev','CISA KEV')] %}
+    {% for ep, label in nav %}
+      <a href="{{ url_for(ep) }}" class="{{ 'active' if request.endpoint == ep or (ep == 'enrich_view' and request.endpoint == 'lookup_view') }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+</header>
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+<footer>Defensive lab tool · data from abuse.ch, CISA KEV and the services you configure · by @alex_mh</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

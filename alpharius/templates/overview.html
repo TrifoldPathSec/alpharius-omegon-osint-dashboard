@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>Overview</h1>
+  <form method="post" action="{{ url_for('run_ingest') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn">Pull feeds now</button>
+  </form>
+</div>
+
+<section class="tiles">
+  <div class="tile"><span class="k">Indicators</span><span class="v">{{ "{:,}".format(counts.indicators) }}</span><span class="s">{{ "{:,}".format(counts.new_24h) }} new in 24 h</span></div>
+  <div class="tile"><span class="k">Botnet C2 online</span><span class="v">{{ counts.online_c2 }}</span><span class="s">Feodo Tracker</span></div>
+  <div class="tile"><span class="k">Known exploited CVEs</span><span class="v">{{ "{:,}".format(counts.kev) }}</span><span class="s">{{ counts.kev_ransomware }} used by ransomware</span></div>
+  <div class="tile {{ 'alert' if counts.alert_matches or counts.vuln_matches }}"><span class="k">Lab matches</span><span class="v">{{ counts.alert_matches + counts.vuln_matches }}</span><span class="s">{{ counts.alert_matches }} alerts · {{ counts.vuln_matches }} KEV CVEs</span></div>
+</section>
+
+{% if counts.indicators == 0 %}
+<div class="empty">No intel yet. Click <b>Pull feeds now</b> or run <code>python -m alpharius ingest</code>.</div>
+{% endif %}
+
+<section class="grid">
+  <div class="card wide"><h2>New indicators per day <small>last 30 days, by feed</small></h2><div class="chart"><canvas id="c-daily"></canvas></div></div>
+  <div class="card"><h2>Top malware families</h2><div class="chart"><canvas id="c-malware"></canvas></div></div>
+  <div class="card"><h2>Botnet C2 by country</h2><div class="chart"><canvas id="c-countries"></canvas></div></div>
+  <div class="card"><h2>CISA KEV additions <small>per month</small></h2><div class="chart"><canvas id="c-kev"></canvas></div></div>
+  <div class="card"><h2>Indicator types</h2><div class="chart"><canvas id="c-types"></canvas></div></div>
+  <div class="card"><h2>Lab alert matches <small>per day</small></h2><div class="chart"><canvas id="c-matches"></canvas></div></div>
+  <div class="card">
+    <h2>Recent feed pulls</h2>
+    <table class="compact">
+      <tr><th>Feed</th><th>When (UTC)</th><th>Result</th></tr>
+      {% for r in runs %}
+      <tr><td>{{ r.source }}</td><td>{{ r.started_at[5:16] }}</td>
+          <td>{% if r.status == 'ok' %}<span class="pill ok">+{{ r.new }}</span> of {{ "{:,}".format(r.fetched) }}{% else %}<span class="pill bad" title="{{ r.error }}">{{ r.status }}</span>{% endif %}</td></tr>
+      {% else %}
+      <tr><td colspan="3" class="muted">No runs yet</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</section>
+<script type="application/json" id="chart-data">{{ charts | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='charts.js') }}"></script>
+{% endblock %}

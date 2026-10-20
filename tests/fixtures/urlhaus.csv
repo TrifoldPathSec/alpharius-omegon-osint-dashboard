@@ -1,0 +1,7 @@
+################################################################
+# abuse.ch URLhaus Database Dump (CSV - recent URLs only)      #
+################################################################
+#
+# id,dateadded,url,url_status,last_online,threat,tags,urlhaus_link,reporter
+"3952511","2026-10-20 04:33:15","http://42.178.168.184:38532/i","online","2026-10-20 04:33:15","malware_download","32-bit,elf,mips,Mozi","https://urlhaus.abuse.ch/url/3952511/","geenensp"
+"3952400","2026-10-19 11:02:00","https://login-update.badcdn.example/office/auth.php","offline","2026-10-19 12:00:00","malware_download","None","https://urlhaus.abuse.ch/url/3952400/","someone"
